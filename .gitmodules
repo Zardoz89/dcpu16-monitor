@@ -1,0 +1,3 @@
+[submodule "BareBonesOS"]
+	path = BareBonesOS
+	url = https://github.com/MadMockers/BareBonesOS.git
