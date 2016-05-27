@@ -15,29 +15,30 @@ print_char:
   SET PUSH, B     ; Push character to be written to screen
   SET PUSH, 1     ; Auto increase cursor position
   INT 0x4743      ; invoke BBOS
-  ADD SP, 2       ; clean up stack
+  ;ADD SP, 2       ; clean up stack
 
 check_overflow:
-  ;SET A, 0x1002   ; Get Cursor pos
-  ;IFG 2, POP
-  ;  SET PC, reset_cursor
+  SET A, 0x1002   ; Get Cursor pos
+  INT 0x4743      ; invoke BBOS
+  IFE 12, POP
+    SET PC, reset_cursor
 
-  ;SET PC, loop
+  ADD SP, 1
+  SET PC, loop
 
 reset_cursor:
-  ;ADD SP, 1
-  SET PUSH, 1
-  SET PUSH, 1
-  INT 0x1001       ; Set cursor at 0,0
+  ADD SP, 1
+  SET PUSH, 0
+  SET PUSH, 0
+  SET A, 0x1001   ; Set cursor at 0,0
+  INT 0x4743      ; invoke BBOS
   ADD SP, 2       ; clean up stack
 
   SET PC, loop
 
 end_program: .dat 0
 
-; DASM not support yet filling with 0s
-
-
+; DASM not support yet filling with 0s, so we use .fill to emplace it
 .fill 0, 0x1FE - end_program
 ;org 0x1FE
 .dat 0x55AA     ; Magic number
