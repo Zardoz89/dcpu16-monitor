@@ -10,3 +10,4 @@
 
 .macro BBOS_GETCHAR   =  BBOS_CALL 0x3001
 
+; vim: set ts=4 sw=4 tw=0 et :

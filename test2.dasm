@@ -2,12 +2,9 @@
 #include "macros.inc"
 
 .org 0
-
+        set b, 'H'
 loop:
-        SET PUSH, 1     ; block and wait for a key to be pressed
-        BBOS_GETCHAR    ; Call to BBOS
-        SET B, POP      ; get result and store in B
-
+        add b, 1
 print_char:
         AND B, 0x007F   ; Unset the 9 MSBits
         SET PUSH, B     ; Push character to be written to screen
@@ -26,7 +23,8 @@ reset_cursor:
         BBOS_SETCURSOR
         ADD SP, 2       ; clean up stack
 
-        SET PC, loop
+        set pc, loop
+
 
 end_program: .dat 0
 
