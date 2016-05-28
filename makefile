@@ -1,16 +1,24 @@
 
+RM  := rm
 DASM := ./dasm
-MKFLOPPY := ./build_bootable_floppy
 
-all: test.idi
+DISK_IMAGE_FILES := test1.idi
 
-test.idi: test.dasm
+all: ${DISK_IMAGE_FILES}
+
+%.bin: %.dasm
 	$(DASM)  $^ $@
 
-.PHONY:  clean hex
+# Switch endianess to the correct
+%.idi: %.bin
+	objcopy -I binary -O binary --reverse-bytes=2 $^ $@
+
+.PHONY: clean
 
 clean:
-	rm test.idi
+	${RM} -f *.idi
+	${RM} -f *.bin
 
-hex: test.idi
-	hexdump  test.idi -e '" 0x%04_ax\t" 16/1 "0x%02X " "\n"'
+# Do a Hexadecimla dump of output file
+%_hex: %.idi
+	hexdump  $^ -e '" 0x%04_ax\t" 16/1 "0x%02X " "\n"'
