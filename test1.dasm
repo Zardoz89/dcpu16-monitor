@@ -1,25 +1,22 @@
 #include "BareBonesOS/src/bbos.inc.asm"
+#include "macros.inc"
 
 org 0
 
 loop:
 read_char:
-  SET A, 0x3001   ; Read Char
   SET PUSH, 1     ; block and wait for a key to be pressed
-  INT 0x4743      ; invoke BBOS
+  BBOS_GETCHAR    ; Call to BBOS
   SET B, POP      ; get result and store in B
 
 print_char:
   AND B, 0x007F   ; Unset the 9 MSBits
-  SET A, 0x1003   ; Write Char
   SET PUSH, B     ; Push character to be written to screen
   SET PUSH, 1     ; Auto increase cursor position
-  INT 0x4743      ; invoke BBOS
-  ;ADD SP, 2       ; clean up stack
+  BBOS_PRINTCHAR
 
 check_overflow:
-  SET A, 0x1002   ; Get Cursor pos
-  INT 0x4743      ; invoke BBOS
+  BBOS_GETCURSOR
   IFE 12, POP
     SET PC, reset_cursor
 
@@ -30,15 +27,15 @@ reset_cursor:
   ADD SP, 1
   SET PUSH, 0
   SET PUSH, 0
-  SET A, 0x1001   ; Set cursor at 0,0
-  INT 0x4743      ; invoke BBOS
+  BBOS_SETCURSOR
   ADD SP, 2       ; clean up stack
 
   SET PC, loop
 
 end_program: .dat 0
 
-; DASM not support yet filling with 0s, so we use .fill to emplace it
+; We use .fill to emplace boot magic number
 .fill 0, 0x1FE - end_program
-;org 0x1FE
 .dat 0x55AA     ; Magic number
+
+; vim: set ts=2 sw=2 tw=0 et :
