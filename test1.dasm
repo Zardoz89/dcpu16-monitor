@@ -1,5 +1,5 @@
 #include "BareBonesOS/src/bbos.inc.asm"
-#include "macros.inc"
+#include "macros.dasm.inc"
 
 .org 0
 

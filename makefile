@@ -6,8 +6,8 @@ DISK_IMAGE_FILES := test1.idi test2.idi
 
 all: ${DISK_IMAGE_FILES}
 
-%.bin: %.dasm
-	$(DASM)  $^ $@
+%.bin: %.dasm macros.dasm.inc io_functions.dasm.inc
+	$(DASM) $< $@
 
 # Switch endianess to the correct
 %.idi: %.bin
