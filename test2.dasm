@@ -2,28 +2,10 @@
 #include "macros.dasm.inc"
 
 .org 0
-        set b, 'H'
+        set a, 'H'
 loop:
-        add b, 1
+        add a, 1
         jsr putc
-;print_char:
-;        AND B, 0x007F   ; Unset the 9 MSBits
-;        SET PUSH, B     ; Push character to be written to screen
-;        SET PUSH, 1     ; Auto increase cursor position
-;        BBOS_PRINTCHAR
-;        BBOS_GETCURSOR
-;        IFE 12, POP
-;            SET PC, reset_cursor
-;
-;        ADD SP, 1
-;        SET PC, loop
-;
-;reset_cursor:
-;        SET [SP], 0
-;        SET PUSH, 0
-;        BBOS_SETCURSOR
-;        ADD SP, 2       ; clean up stack
-;
         set pc, loop
 
 #include "io_functions.dasm.inc"

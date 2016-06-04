@@ -2,10 +2,10 @@
 
 ;    Prints a 7 bit ascii char and update cursor. Wraps screen
 ;    Params :
-;        B -> 7 bit ASCII char (polutes it)
+;        A -> 7 bit ASCII char (polutes it, doing an AND 0x007F)
 putc:
-        and b, 0x007F    ; Clearing attribute color (use default color on BBOS)
-        set push, b
+        and a, 0x007F    ; Clearing attribute color (use default color on BBOS)
+        set push, a
         set push, 1      ; Autoincrement cursor
         BBOS_PRINTCHAR
         BBOS_GETCURSOR      ; [sp] = row , [sp+1] = col
@@ -69,8 +69,8 @@ clr_line:
         set y, [sp+1]       ; Col
 
         set z, y            ; Counter
-        set push, 0x20
-        set push, 1
+        set [sp+1], 0x20
+        set [sp], 1
 clr_line_loop_:
         ife 32, z
             set pc, clr_line_end_ ; exit loop at end of line
@@ -78,10 +78,8 @@ clr_line_loop_:
         add z, 1
         set pc, clr_line_loop_
 clr_line_end_:
-        add sp,2            ; Clear stack
-
-        set push, x
-        set push, y
+        set [sp], x
+        set [sp+1], y
         BBOS_SETCURSOR      ; Resetting cursor
         add sp, 2
 
