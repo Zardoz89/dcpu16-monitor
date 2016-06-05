@@ -1,3 +1,6 @@
+; Simple test of IO functions
+; Does echo of user input on keyboard, and writes to a new line
+;
 #include "BareBonesOS/src/bbos.inc.asm"
 #include "macros.dasm.inc"
 
@@ -11,7 +14,7 @@ read_line:
         jsr getchar
         ife a, 0x11             ; Return key
             set pc, print_line
-        ife i, 31               ; At line of LEM32 minus prompt
+        ife i, 31               ; A line of LEM32 minus prompt as max long
             set pc, print_line
         ife a, 0x90             ; Shift key -> ignore it
             set pc, read_line

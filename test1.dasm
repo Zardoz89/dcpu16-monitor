@@ -1,3 +1,7 @@
+; Simple test of BBOS macros
+;
+; Reads a character from keyboard and outputs to the screen
+
 #include "BareBonesOS/src/bbos.inc.asm"
 #include "macros.dasm.inc"
 

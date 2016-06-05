@@ -1,3 +1,6 @@
+; Simple test of two basic IO functions
+; Fills the screen with the whole charset, begins on 'I' character
+
 #include "BareBonesOS/src/bbos.inc.asm"
 #include "macros.dasm.inc"
 
