@@ -88,5 +88,29 @@ clr_line_end_:
         set x, pop
         set pc, pop
 
+; Do backspace with the cursor. Emplacin a space and getting back one cell the cursor
+backspace:
+        sub sp, 2
+        BBOS_GETCURSOR
+        ife [sp+1], 0       ; At column  0 ?
+            set pc, backspace_wrap_ ; Wrap to the previus row
+        sub [sp+1], 1
+backspace_setcursor_:
+        BBOS_SETCURSOR
+
+        set [sp+1], 0x20
+        set [sp], 0
+        BBOS_PRINTCHAR      ; Print space character and not increment cursor
+
+        add sp, 2
+        set pc, pop
+
+backspace_wrap_:    ; [sp+1] -> col [sp] -> row
+        set [sp+1], 31
+        sub [sp], 1
+        ifg [sp], 11 ; Underflow! -> set at last line
+            set [sp], 11
+
+        set pc, backspace_setcursor_
 
 ; vim: set ts=4 sw=4 tw=0 et :

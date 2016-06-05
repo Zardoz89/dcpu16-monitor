@@ -2,7 +2,7 @@
 RM  := rm
 DASM := ./dasm
 
-DISK_IMAGE_FILES := test1.idi test2.idi test3.idi
+DISK_IMAGE_FILES := monitor.idi test1.idi test2.idi test3.idi
 
 all: ${DISK_IMAGE_FILES}
 

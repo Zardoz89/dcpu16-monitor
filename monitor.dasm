@@ -1,0 +1,91 @@
+; Simple test of IO functions
+; Does echo of user input on keyboard, and writes to a new line
+;
+#include "BareBonesOS/src/bbos.inc.asm"
+#include "macros.dasm.inc"
+
+; Modes of operation
+.def EXAM  0   ; Show the value at last_address
+.def BEXAM 1   ; Shot the valus from last_address to another address
+.def WRITE 2   ; Writes values from last_address
+
+.def CR    0x11
+.def DEL   0x10
+
+.org 0
+monitor_entry:
+        set [last_address], 0
+        set [mode], 0
+
+monitor_get_input:
+        jsr line_feed
+        jsr print_prompt
+
+monitor_get_char_loop:
+        jsr getchar     ; A now, have keyboard key
+        ;ife a, CR
+        ;    set pc, monitor_parse
+        ife a, DEL
+            set pc, monitor_del
+
+        ; Hexadecimal input
+        ifg a, 0x40 ; >= 'A'
+            ifl a, 0x47 ; <= F
+                set pc, monitor_putbuffer
+        ifg a, 0x60 ; >= 'a'
+            ifl a, 0x67 ;<= f
+                set pc, monitor_putbuffer
+        ifg a, 0x2F ; >= '0'
+            ifl a, 0x3A ; <= '9'
+                set pc, monitor_putbuffer
+
+        ; Separator
+        ife a, 0x20
+            set pc, monitor_putbuffer
+        ; Change mode
+        ife a, '.'      ; List block
+            set pc, monitor_putbuffer
+        ife a, 0x3A ;':'      ; Put data
+            set pc, monitor_putbuffer
+
+        ; Run command
+        ife a, 0x72 ; 'r'
+            set pc, monitor_putbuffer
+        ife a, 'R'
+            set pc, monitor_putbuffer
+
+        set pc, monitor_get_char_loop   ; Ignores the rest of input
+
+monitor_putbuffer:
+        set b, [buffer_size]            ; Read the counter
+        set [buffer + b], a             ; Put the character on the buffer
+        add b, 1                        ; Increment the counter
+        set [buffer_size], b            ; Store the counter
+        jsr putc                        ; And echo the character
+
+        set pc, monitor_get_char_loop   ; and grab next input
+
+monitor_del:
+        ife [buffer_size], 0
+            set pc, monitor_get_char_loop   ; Nothing to delete
+        sub [buffer_size], 1
+        ; Now to repositionate the cursor, and delete the echo
+        jsr backspace
+        set pc, monitor_get_char_loop   ; and grab next input
+
+#include "io_functions.dasm.inc"
+
+end_program: .dat 0
+
+; We use .fill to emplace boot magic number
+.fill 0, 0x1FE - end_program
+.dat 0x55AA     ; Magic number
+
+; Variables
+last_address:   .reserve 1
+mode:           .reserve 1
+
+buffer_size:    .reserve 1
+buffer:         .reserve 1
+
+; vim: set ts=4 sw=4 tw=0 et :
