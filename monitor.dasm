@@ -14,8 +14,9 @@
 
 .org 0
 monitor_entry:
-        set [last_address], 0
-        set [mode], 0
+        set [buffer_size], 0
+        set [last_address], 0x01FF
+        set [mode], EXAM
 
 monitor_get_input:
         jsr line_feed
@@ -23,15 +24,12 @@ monitor_get_input:
 
 monitor_get_char_loop:
         jsr getchar     ; A now, have keyboard key
-        ;ife a, CR
-        ;    set pc, monitor_parse
+        ife a, CR
+            set pc, monitor_parse
         ife a, DEL
             set pc, monitor_del
 
         ; Hexadecimal input
-        ifg a, 0x40 ; >= 'A'
-            ifl a, 0x47 ; <= F
-                set pc, monitor_putbuffer
         ifg a, 0x60 ; >= 'a'
             ifl a, 0x67 ;<= f
                 set pc, monitor_putbuffer
@@ -50,8 +48,6 @@ monitor_get_char_loop:
 
         ; Run command
         ife a, 0x72 ; 'r'
-            set pc, monitor_putbuffer
-        ife a, 'R'
             set pc, monitor_putbuffer
 
         set pc, monitor_get_char_loop   ; Ignores the rest of input
@@ -72,6 +68,94 @@ monitor_del:
         ; Now to repositionate the cursor, and delete the echo
         jsr backspace
         set pc, monitor_get_char_loop   ; and grab next input
+
+monitor_parse:
+        ; We are to use:
+        ; Y as indicator that a new address was put
+        ; Z as store of parsed values
+        ; I as index on buffer
+        ; A value read from buffer
+        set y, 0
+        set z, 0
+        set i, 0
+monitor_parse_loop:
+        ife i, [buffer_size]
+            set pc, monitor_parse_endloop
+
+        set a, [buffer + i]     ; Grab next character to parse
+        add i, 1                ; And increment index
+
+        ; TODO Parse commands here
+        ife a, 0x20 ; ' '
+            set pc, monitor_new_laddress
+
+        ; Parse hex value
+        ifg a, 0x60 ; >= 'a'
+            ifl a, 0x67 ;<= f
+                set pc, monitor_val_hex_letter
+        ifg a, 0x2F ; >= '0'
+            ifl a, 0x3A ; <= '9'
+                set pc, monitor_val_hdigit
+
+        set pc, monitor_parse_loop
+
+monitor_parse_endloop:
+        ife [mode], EXAM                ; if on EXAM mode
+            ifn y, 0                    ; and there was an input
+                set [last_address], z   ; store last address new value
+
+        ; TODO if X mode go to ....
+
+monitor_parse_exam:
+        jsr monitor_print_laddress
+
+monitor_parse_end:
+        set [buffer_size], 0
+        set pc, monitor_get_input   ; and grab next input
+
+monitor_val_hdigit:
+        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
+        sub a, 0x30 ; 0
+        bor z, a    ; z = z or (a-'0')
+
+        set y, 1
+        set pc, monitor_parse_loop
+monitor_val_hex_letter:
+        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
+        sub a, 0x57 ; 'a' - 0x0A = 0x57
+        bor z, a    ; z = z or (a-0x57)
+
+        set y, 1
+        set pc, monitor_parse_loop
+
+monitor_new_laddress:
+        ife [mode], EXAM                ; if on EXAM mode
+            ifn y, 0                    ; and there was an input
+                set [last_address], z   ; store last address new value
+        
+        jsr monitor_print_laddress
+
+        set z, 0    ; Clears temporal value
+        set y, 0    ; Clears flag of a new laddress
+        set pc, monitor_parse_loop
+
+; Prints pair addrress:value
+monitor_print_laddress:
+        set push, a
+        jsr line_feed     ; Next line
+        ; print address
+        set a, [last_address]
+        jsr print_uhexword
+        set a, ':'
+        jsr putc
+
+        ; print value at address last_address
+        set a, [last_address]
+        set a, [a]
+        jsr print_uhexword
+
+        set a, pop
+        set pc, pop
 
 #include "io_functions.dasm.inc"
 

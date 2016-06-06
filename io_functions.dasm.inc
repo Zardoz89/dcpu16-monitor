@@ -113,4 +113,44 @@ backspace_wrap_:    ; [sp+1] -> col [sp] -> row
 
         set pc, backspace_setcursor_
 
+;    Prints a unsigned hexadecimal word and update cursor. Wraps screen
+;    Params :
+;        A -> unsigned word
+;    Return : A = 0
+print_uhexword:
+        set push, ex
+        
+        shl a, 4    ; Puts first digit to EX
+        jsr print_hexdigit
+
+        shl a, 4    ; Puts second digit to EX
+        jsr print_hexdigit
+        
+        shl a, 4    ; Puts third digit to EX
+        jsr print_hexdigit
+        
+        shl a, 4    ; Puts fouth digit to EX
+        jsr print_hexdigit
+
+        set ex, pop
+        set pc, pop
+
+;    Prints a hexadecimal digit and update cursor. Wraps screen
+;    Params :
+;        EX -> digit (polutes it)
+print_hexdigit:
+        set push, a
+        set a, ex
+        and a, 0x000F
+        add a, 0x30 ; '0'
+        ifl a, 0x3A ; if b <= '9'
+            set pc, print_hexdigit_putc_
+        add a, 7    ;+= ('A' - '0')
+
+print_hexdigit_putc_:
+        jsr putc
+
+        set a, pop
+        set pc, pop
+
 ; vim: set ts=4 sw=4 tw=0 et :
