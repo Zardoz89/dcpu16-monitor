@@ -35,6 +35,8 @@ getchar:
 
 ;   Sets cursor to the next line
 line_feed:
+        set push, a
+        
         set push, 0
         set push, 0
         BBOS_GETCURSOR
@@ -45,6 +47,7 @@ line_feed:
         BBOS_SETCURSOR
         add sp, 2           ; Clears stack
 
+        set a, pop
         set pc, pop
 
 

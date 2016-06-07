@@ -148,20 +148,26 @@ monitor_new_laddress:                   ; Replace last_address and print it
         set pc, monitor_parse_loop
 
 monitor_print_laddress:                 ; Prints pair addrress:value
-        set push, a
-        jsr line_feed     ; Next line
-        ; print address
+        ; 1 - print address
         set a, [last_address]
-        jsr print_uhexword
-        set a, ':'
-        jsr putc
+        jsr monitor_print_address
 
-        ; print value at address last_address
+        ; 2 - print value at address last_address
         set a, [last_address]
         set a, [a]
         jsr print_uhexword
 
-        set a, pop
+        set pc, pop
+
+monitor_print_address_bexam:            ; Called on BEXAM mode to print address
+        set a, [last_address]
+        add a, b
+monitor_print_address:                  ; Print an address on A register
+        jsr line_feed                   ; on the Next line
+        ; print address
+        jsr print_uhexword
+        set a, ':'
+        jsr putc
         set pc, pop
 
 monitor_chmod_bexam:                    ; Set mode to block examine
@@ -191,13 +197,16 @@ monitor_parse_bexam:                    ; Write a range of values
             set pc, monitor_parse_exam
 
         set b, 0
-monitor_parse_bexam_for:                ; for (b=0; b<(z-last_address) ; b++)
+monitor_parse_bexam_for:                ; for (b=0; b<=(z-last_address) ; b++)
         set a, z
         sub a, [last_address]
-        ife b, a
+        ifg b, a
             set pc, monitor_parse_bexam_forend
 
         ;ifc b, 0x0003   ; if b & 0b0000_0011 == 0
+        ;    jsr line_feed
+        ifc b, 0x0003   ; if b & 0b0000_0011 == 0
+            jsr monitor_print_address_bexam
             ; TODO print address last_address + b
 
         set a, 0x20   ; ' '
@@ -205,12 +214,9 @@ monitor_parse_bexam_for:                ; for (b=0; b<(z-last_address) ; b++)
 
         ; print value at address last_address
         set a, [last_address]
-        set a, [a]
         add a, b
+        set a, [a]  ; a= [[last_adress]+b]
         jsr print_uhexword
-
-        ifc b, 0x0003   ; if b & 0b0000_0011 == 0
-            jsr line_feed
 
         add b,1
         set pc, monitor_parse_bexam_for
