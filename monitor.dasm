@@ -11,6 +11,7 @@
 
 .def CR    0x11
 .def DEL   0x10
+.def SHIFT 0x90
 
 .org 0
 monitor_entry:
@@ -28,26 +29,9 @@ monitor_get_char_loop:
             set pc, monitor_parse
         ife a, DEL
             set pc, monitor_del
+        ife a, SHIFT    ; Ignores Shift key
+            set pc, monitor_get_char_loop
 
-        ;; Hexadecimal input
-        ;ifg a, 0x60 ; >= 'a'
-        ;    ifl a, 0x67 ;<= f
-        ;        set pc, monitor_putbuffer
-        ;ifg a, 0x2F ; >= '0'
-        ;    ifl a, 0x3A ; <= '9'
-        ;        set pc, monitor_putbuffer
-
-        ;; Separator
-        ;ife a, 0x20
-        ;    set pc, monitor_putbuffer
-        ;; Change mode
-        ;ife a, '.'      ; List block
-        ;    set pc, monitor_putbuffer
-        ;ife a, 0x3A ;':'      ; Put data
-        ;    set pc, monitor_putbuffer
-
-        ;; Run command
-        ;ife a, 0x72 ; 'r'
         set pc, monitor_putbuffer
 
         ;set pc, monitor_get_char_loop   ; Ignores the rest of input
@@ -87,19 +71,22 @@ monitor_parse_loop:         ; Here parses the buffer
 
         ; TODO Parse commands here
         ife a, 0x20 ; ' '
-            set pc, monitor_new_laddress
+            ife [mode], EXAM
+                set pc, monitor_new_laddress
+
+        ;ife a, 0x20 ; ' '
+        ;    ife [mode], WRITE
+        ;        set pc, monitor_write_eval
 
         ife a, 0x2E ; '.'
             ife [mode], EXAM
                 set pc, monitor_chmod_bexam ; Switch to Block EXAMination
 
-        ; Parse hex value
-        ifg a, 0x60 ; >= 'a'
-            ifl a, 0x67 ;<= f
-                set pc, monitor_val_hex_letter
-        ifg a, 0x2F ; >= '0'
-            ifl a, 0x3A ; <= '9'
-                set pc, monitor_val_hdigit
+        ife a, 0x2E ; ':'
+            ife [mode], EXAM
+                set pc, monitor_chmod_write ; Switch to Write mode
+
+        jsr hexdigit_to_word        ; Parse a single Hexadecimal digit and put on Z
 
         set pc, monitor_parse_loop
 
@@ -111,30 +98,17 @@ monitor_parse_endloop:
         ife [mode], BEXAM
             set pc, monitor_parse_bexam ; Go to BEXAM mode code
 
-        ; TODO if X mode go to ....
+        ife [mode], WRITE
+            set pc, monitor_parse_write ; Go to WRITE mode code
 
-monitor_parse_exam:
+monitor_parse_exam:                     ; EXAM mode code
         jsr monitor_print_laddress
 
 monitor_parse_end:                      ; Common code that ends the parse loop
         set [buffer_size], 0
         set [mode], EXAM
-        set pc, monitor_get_input   ; and grab next input
+        set pc, monitor_get_input       ; and grab next input
 
-monitor_val_hdigit:                     ; Parse Hex [0-9] digit
-        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
-        sub a, 0x30 ; 0
-        bor z, a    ; z = z or (a-'0')
-
-        set y, 1
-        set pc, monitor_parse_loop
-monitor_val_hex_letter:                 ; Parse Hex [a-f] digit
-        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
-        sub a, 0x57 ; 'a' - 0x0A = 0x57
-        bor z, a    ; z = z or (a-0x57)
-
-        set y, 1
-        set pc, monitor_parse_loop
 
 monitor_new_laddress:                   ; Replace last_address and print it
         ife [mode], EXAM                ; if on EXAM mode
@@ -151,6 +125,9 @@ monitor_print_laddress:                 ; Prints pair addrress:value
         ; 1 - print address
         set a, [last_address]
         jsr monitor_print_address
+
+        set a, 0x20 ; ' '
+        jsr putc
 
         ; 2 - print value at address last_address
         set a, [last_address]
@@ -203,11 +180,8 @@ monitor_parse_bexam_for:                ; for (b=0; b<=(z-last_address) ; b++)
         ifg b, a
             set pc, monitor_parse_bexam_forend
 
-        ;ifc b, 0x0003   ; if b & 0b0000_0011 == 0
-        ;    jsr line_feed
         ifc b, 0x0003   ; if b & 0b0000_0011 == 0
             jsr monitor_print_address_bexam
-            ; TODO print address last_address + b
 
         set a, 0x20   ; ' '
         jsr putc
@@ -223,6 +197,72 @@ monitor_parse_bexam_for:                ; for (b=0; b<=(z-last_address) ; b++)
 
 monitor_parse_bexam_forend:
         set pc, monitor_parse_end
+
+monitor_parse_write:                    ; Write values to the RAM
+        jsr line_feed
+        set a, 0x3A   ; ':'
+        jsr putc
+        set a, 0x20   ; ' '
+        jsr putc
+
+        set j, [last_address]
+monitor_parse_write_while:      ; While i < buffer_size
+        ife i, [buffer_size]
+            set pc, monitor_parse_end
+
+        set a, [buffer + i]     ; Read a caracter on the buffer
+        add i, 1
+
+        jsr putc  ; Echo it
+
+        ;ife a, 0x20 ; If is ' ', write the value of Z to [J++] and clear Z
+        ;    set pc, monitor_write_word
+
+        jsr hexdigit_to_word
+        set pc, monitor_parse_write_while
+
+monitor_write_word:
+        set [j], z
+        add j, 1
+        set z, 0
+
+        set a, 0x20   ; ' '
+        jsr putc
+
+        set pc, monitor_parse_write_while
+
+
+; -----------------------------------------------------------------------------
+; Auxiliar functions
+
+; Parses a Hex Digit on A registers and puts on Z register. Y becomes 1
+; if is a valid hexadecimal digit
+hexdigit_to_word:
+        ; Parse hex value
+        ifg a, 0x60 ; >= 'a'
+            ifl a, 0x67 ;<= f
+                set pc, hexdigit_to_word_hex_letter_
+        ifg a, 0x2F ; >= '0'
+            ifl a, 0x3A ; <= '9'
+                set pc, hexdigit_to_word_hdigit_
+        set pc, pop
+
+hexdigit_to_word_hdigit_:                     ; Parse Hex [0-9] digit
+        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
+        sub a, 0x30 ; 0
+        bor z, a    ; z = z or (a-'0')
+
+        set y, 1
+        set pc, pop
+
+hexdigit_to_word_hex_letter_:                 ; Parse Hex [a-f] digit
+        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
+        sub a, 0x57 ; 'a' - 0x0A = 0x57
+        bor z, a    ; z = z or (a-0x57)
+
+        set y, 1
+        set pc, pop
+
 
 #include "io_functions.dasm.inc"
 
