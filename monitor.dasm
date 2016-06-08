@@ -29,28 +29,28 @@ monitor_get_char_loop:
         ife a, DEL
             set pc, monitor_del
 
-        ; Hexadecimal input
-        ifg a, 0x60 ; >= 'a'
-            ifl a, 0x67 ;<= f
-                set pc, monitor_putbuffer
-        ifg a, 0x2F ; >= '0'
-            ifl a, 0x3A ; <= '9'
-                set pc, monitor_putbuffer
+        ;; Hexadecimal input
+        ;ifg a, 0x60 ; >= 'a'
+        ;    ifl a, 0x67 ;<= f
+        ;        set pc, monitor_putbuffer
+        ;ifg a, 0x2F ; >= '0'
+        ;    ifl a, 0x3A ; <= '9'
+        ;        set pc, monitor_putbuffer
 
-        ; Separator
-        ife a, 0x20
-            set pc, monitor_putbuffer
-        ; Change mode
-        ife a, '.'      ; List block
-            set pc, monitor_putbuffer
-        ife a, 0x3A ;':'      ; Put data
-            set pc, monitor_putbuffer
+        ;; Separator
+        ;ife a, 0x20
+        ;    set pc, monitor_putbuffer
+        ;; Change mode
+        ;ife a, '.'      ; List block
+        ;    set pc, monitor_putbuffer
+        ;ife a, 0x3A ;':'      ; Put data
+        ;    set pc, monitor_putbuffer
 
-        ; Run command
-        ife a, 0x72 ; 'r'
-            set pc, monitor_putbuffer
+        ;; Run command
+        ;ife a, 0x72 ; 'r'
+        set pc, monitor_putbuffer
 
-        set pc, monitor_get_char_loop   ; Ignores the rest of input
+        ;set pc, monitor_get_char_loop   ; Ignores the rest of input
 
 monitor_putbuffer:
         set b, [buffer_size]            ; Read the counter
