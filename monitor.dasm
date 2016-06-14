@@ -37,8 +37,6 @@ monitor_get_input:
 
 monitor_get_char_loop:
         jsr getchar     ; A now, have keyboard key
-        ife a, CR
-            set pc, monitor_parse
         ife a, DEL
             set pc, monitor_del
         ife a, SHIFT    ; Ignores Shift key
@@ -46,13 +44,19 @@ monitor_get_char_loop:
         ife a, CTRL     ; Ignores Ctrl key
             set pc, monitor_get_char_loop
 
-        set pc, monitor_putbuffer
+        set push, a
+        ife a, CR
+            set a, SPACE  ; Hack to put an space at the end of the buffer
 
-monitor_putbuffer:
         set b, [buffer_size]            ; Read the counter
         set [buffer + b], a             ; Put the character on the buffer
         add b, 1                        ; Increment the counter
         set [buffer_size], b            ; Store the counter
+
+        set a, pop
+        ife a, CR
+            set pc, monitor_parse       ; Finish filling the buffer
+
         jsr putc                        ; And echo the character
 
         set pc, monitor_get_char_loop   ; and grab next input
@@ -68,18 +72,20 @@ monitor_del:    ; Delete a char fro mthe buffer
 monitor_parse:
         ; We are to use:
         ; A value read from buffer
-        ; Z on BEXAM/STORE were put parsed hex value
+        ; X were put if we get an value on Z
+        ; Z were put parsed hex value
         ; Y previus value of A
         ; I as index on buffer
-        ; J  on STORE as index were write values
+        ; J on STORE as index were write values
         set a, 0
         set z, 0
+        set x, 0
         set y, 0
         set i, 0
         set j, 0
 monitor_parse_loop:             ; Here parses a symbol from the buffer
         set y, a                ; Save previus value of A
-        ifl [buffer_size], i    ; while (buffer_size > i) { ...
+        ife i, [buffer_size]    ; while (i < buffer_size) { ...
             set pc, monitor_parse_endloop
 
         set a, [buffer + i]     ; Grab next character to parse
@@ -88,33 +94,32 @@ monitor_parse_loop:             ; Here parses a symbol from the buffer
         ife a, SPACE
             jsr monitor_parse_execute
 
-        ife [mode], STORE
-            set pc, monitor_parse_hexval
+        ;ife [mode], STORE
+        ;    set pc, monitor_parse_hexval
 
-        ; Parse commands here
-        ife a, GO_CMD
-            set pc, [last_address]
+        ;; Parse commands here
+        ;ife a, GO_CMD
+        ;    set pc, [last_address]
 
-        ife [mode], EXAM
-            ife a, BEXAM_CMD
-                set pc, monitor_chmod_bexam ; Switch to Block EXAMination
+        ;ife [mode], EXAM
+        ;    ife a, BEXAM_CMD
+        ;        set pc, monitor_chmod_bexam ; Switch to Block EXAMination
 
-        ife [mode], EXAM
-            ife a, STORE_CMD
-                set pc, monitor_chmod_store ; Switch to Store mode
+        ;ife [mode], EXAM
+        ;    ife a, STORE_CMD
+        ;        set pc, monitor_chmod_store ; Switch to Store mode
 
 monitor_parse_hexval:
-        ife [mode], EXAM
-            set z, [last_address]
+        set push, a
         jsr hexdigit_to_word        ; Parse a single Hexadecimal digit and put on Z
-        ife [mode], EXAM
-            set [last_address], z
+        set x, a
+        set a, pop
 
         set pc, monitor_parse_loop
 
 
 monitor_parse_endloop:    ; Here code that acts when buffer ends
-        jsr monitor_parse_execute
+        ;jsr monitor_parse_execute
 
 monitor_parse_end:                      ; Common code that ends the parse loop
         set [buffer_size], 0
@@ -137,29 +142,37 @@ monitor_chmod_store:                    ; Set mode to write mode
 
 monitor_parse_execute:        ; Here executes a command or an command action
         set push, a
-        ife a, y
-            set pc, pop       ; Double space or space at end of buffer ?
+
+        ife a, SPACE
+            ife a, y
+                set pc, monitor_parse_execute_end ; Avoid double execution
+
+        ife [mode], EXAM
+            ife x, 1
+                set [last_address], z   ; Updates last adress
 
         ife [mode], EXAM
             set pc, monitor_print_laddress
 
-        ife [mode], BEXAM
-            set pc, monitor_print_block
+        ;ife [mode], BEXAM
+        ;    set pc, monitor_print_block
 
-        ; Store mode here
-        set b, [last_address]
-        add b, j
-        set [b], z
-        add j, 1      ; [last_address + j++] = z
+        ;; Store mode here
+        ;set b, [last_address]
+        ;add b, j
+        ;set [b], z
+        ;add j, 1      ; [last_address + j++] = z
 
-        set a, pop
-        set pc, pop
+        set pc, monitor_parse_execute_end
 
 monitor_print_laddress:                 ; Prints pair addrress:value
+        jsr line_feed                   ; on the Next line
         ; 1 - print address
         set a, [last_address]
         jsr print_uhexword
 
+        set a, ':'
+        jsr putc
         set a, SPACE
         jsr putc
 
@@ -168,8 +181,7 @@ monitor_print_laddress:                 ; Prints pair addrress:value
         set a, [a]
         jsr print_uhexword
 
-        set a, pop
-        set pc, pop
+        set pc, monitor_parse_execute_end
 
 
 monitor_print_address_bexam:            ; Called on BEXAM mode to print address
@@ -210,17 +222,18 @@ monitor_print_block_for:                ; for (ij=0; j<=(z-last_address) ; j++)
         set pc, monitor_print_block_for
 
 monitor_print_block_forend:
+monitor_parse_execute_end:
+        set z, 0  ; Reset the acumulator
         set a, pop
         set pc, pop
-
 
 
 ; -----------------------------------------------------------------------------
 ; Auxiliar functions
 
-; Parses a Hex Digit on A registers and puts on Z register. Preserves A
+; Parses a Hex Digit on A registers and puts on Z register.
+; A would become 1 if parsed an value
 hexdigit_to_word:
-        set push, a
         ; Parse hex value
         ifg a, 0x60 ; >= 'a'
             ifl a, 0x67 ;<= f
@@ -229,7 +242,7 @@ hexdigit_to_word:
             ifl a, 0x3A ; <= '9'
                 set pc, hexdigit_to_word_hdigit_
 
-        set a, pop
+        set a, 0
         set pc, pop
 
 hexdigit_to_word_hdigit_:                     ; Parse Hex [0-9] digit
@@ -237,7 +250,7 @@ hexdigit_to_word_hdigit_:                     ; Parse Hex [0-9] digit
         sub a, 0x30 ; 0
         bor z, a    ; z = z or (a-'0')
 
-        set a, pop
+        set a, 1
         set pc, pop
 
 hexdigit_to_word_hex_letter_:                 ; Parse Hex [a-f] digit
@@ -245,7 +258,7 @@ hexdigit_to_word_hex_letter_:                 ; Parse Hex [a-f] digit
         sub a, 0x57 ; 'a' - 0x0A = 0x57
         bor z, a    ; z = z or (a-0x57)
 
-        set a, pop
+        set a, 1
         set pc, pop
 
 
