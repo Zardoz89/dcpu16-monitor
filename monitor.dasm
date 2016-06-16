@@ -101,9 +101,9 @@ monitor_parse_loop:             ; Here parses a symbol from the buffer
         ;ife a, GO_CMD
         ;    set pc, [last_address]
 
-        ;ife [mode], EXAM
-        ;    ife a, BEXAM_CMD
-        ;        set pc, monitor_chmod_bexam ; Switch to Block EXAMination
+        ife [mode], EXAM
+            ife a, BEXAM_CMD
+                set pc, monitor_chmod_bexam ; Switch to Block EXAMination
 
         ;ife [mode], EXAM
         ;    ife a, STORE_CMD
@@ -128,12 +128,16 @@ monitor_parse_end:                      ; Common code that ends the parse loop
 
 
 monitor_chmod_bexam:                    ; Set mode to block examine
+        ife x, 1
+            set [last_address], z   ; Updates last adress
         set z, 0    ; Clear temporal var
         set [mode], BEXAM
 
         set pc, monitor_parse_loop
 
 monitor_chmod_store:                    ; Set mode to write mode
+        ife x, 1
+            set [last_address], z   ; Updates last adress
         set z, 0    ; Clear temporal var
         set [mode], STORE
 
@@ -154,8 +158,8 @@ monitor_parse_execute:        ; Here executes a command or an command action
         ife [mode], EXAM
             set pc, monitor_print_laddress
 
-        ;ife [mode], BEXAM
-        ;    set pc, monitor_print_block
+        ife [mode], BEXAM
+            set pc, monitor_print_block
 
         ;; Store mode here
         ;set b, [last_address]
@@ -186,7 +190,7 @@ monitor_print_laddress:                 ; Prints pair addrress:value
 
 monitor_print_address_bexam:            ; Called on BEXAM mode to print address
         set a, [last_address]
-        add a, b
+        add a, j
         jsr line_feed                   ; on the Next line
         jsr print_uhexword              ; print address
         set a, ':'
@@ -200,13 +204,13 @@ monitor_print_block:              ; Write a range of values [last_address] -> Z
             set pc, monitor_print_laddress
 
         set j, 0
-monitor_print_block_for:                ; for (ij=0; j<=(z-last_address) ; j++)
+monitor_print_block_for:                ; for (j=0; j<=(z-last_address) ; j++)
         set a, z
         sub a, [last_address]
         ifg j, a
             set pc, monitor_print_block_forend
 
-        ifc b, 0x0003   ; if b & 0b0000_0011 == 0 -> (b % 4 == 0 )
+        ifc j, 0x0003   ; if j & 0b0000_0011 == 0 -> (j % 4 == 0 )
             jsr monitor_print_address_bexam
 
         set a, SPACE
@@ -222,6 +226,8 @@ monitor_print_block_for:                ; for (ij=0; j<=(z-last_address) ; j++)
         set pc, monitor_print_block_for
 
 monitor_print_block_forend:
+        set [mode], EXAM  ; Finish BEXAM mode
+
 monitor_parse_execute_end:
         set z, 0  ; Reset the acumulator
         set a, pop
