@@ -94,20 +94,20 @@ monitor_parse_loop:             ; Here parses a symbol from the buffer
         ife a, SPACE
             jsr monitor_parse_execute
 
-        ;ife [mode], STORE
-        ;    set pc, monitor_parse_hexval
+        ife [mode], STORE
+            set pc, monitor_parse_hexval
 
         ;; Parse commands here
-        ;ife a, GO_CMD
-        ;    set pc, [last_address]
+        ife a, GO_CMD
+            set pc, monitor_go_cmd
 
         ife [mode], EXAM
             ife a, BEXAM_CMD
                 set pc, monitor_chmod_bexam ; Switch to Block EXAMination
 
-        ;ife [mode], EXAM
-        ;    ife a, STORE_CMD
-        ;        set pc, monitor_chmod_store ; Switch to Store mode
+        ife [mode], EXAM
+            ife a, STORE_CMD
+                set pc, monitor_chmod_store ; Switch to Store mode
 
 monitor_parse_hexval:
         set push, a
@@ -161,11 +161,11 @@ monitor_parse_execute:        ; Here executes a command or an command action
         ife [mode], BEXAM
             set pc, monitor_print_block
 
-        ;; Store mode here
-        ;set b, [last_address]
-        ;add b, j
-        ;set [b], z
-        ;add j, 1      ; [last_address + j++] = z
+        ; Store mode here
+        set b, [last_address]
+        add b, j
+        set [b], z
+        add j, 1      ; [last_address + j++] = z
 
         set pc, monitor_parse_execute_end
 
@@ -233,6 +233,10 @@ monitor_parse_execute_end:
         set a, pop
         set pc, pop
 
+monitor_go_cmd:
+        ife x, 1
+            set [last_address], z   ; Updates last adress
+        set pc, [last_address]      ; Go To last_address
 
 ; -----------------------------------------------------------------------------
 ; Auxiliar functions
