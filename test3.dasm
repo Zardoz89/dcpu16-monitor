@@ -1,0 +1,51 @@
+; Simple test of IO functions
+; Does echo of user input on keyboard, and writes to a new line
+;
+#include "BareBonesOS/src/bbos.inc.asm"
+#include "macros.dasm.inc"
+
+.org 0
+        set i, 0
+start:
+        jsr line_feed
+        jsr print_prompt
+
+read_line:
+        jsr getchar
+        ife a, 0x11             ; Return key
+            set pc, print_line
+        ife i, 31               ; A line of LEM32 minus prompt as max long
+            set pc, print_line
+        ife a, 0x90             ; Shift key -> ignore it
+            set pc, read_line
+        sti [i+buffer], a       ; Copy character & increment i
+
+        jsr putc                ; Echo input
+        set pc, read_line
+
+print_line:
+        jsr line_feed
+        set j, 0                ; J as counter
+print_line_loop:
+        ife j, i
+            set pc, print_line_end
+        set a, [j+buffer]
+        add j, 1
+        jsr putc
+        set pc, print_line_loop
+print_line_end:
+        set i, 0
+        set pc, start
+
+#include "io_functions.dasm.inc"
+
+end_program: .dat 0
+
+; We use .fill to emplace boot magic number
+.fill 0, 0x1FE - end_program
+.dat 0x55AA     ; Magic number
+
+buffer:
+
+
+; vim: set ts=4 sw=4 tw=0 et :

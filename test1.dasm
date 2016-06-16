@@ -1,0 +1,41 @@
+; Simple test of BBOS macros
+;
+; Reads a character from keyboard and outputs to the screen
+
+#include "BareBonesOS/src/bbos.inc.asm"
+#include "macros.dasm.inc"
+
+.org 0
+
+loop:
+        SET PUSH, 1     ; block and wait for a key to be pressed
+        BBOS_GETCHAR    ; Call to BBOS
+        SET B, POP      ; get result and store in B
+
+print_char:
+        AND B, 0x007F   ; Unset the 9 MSBits
+        SET PUSH, B     ; Push character to be written to screen
+        SET PUSH, 1     ; Auto increase cursor position
+        BBOS_PRINTCHAR
+        BBOS_GETCURSOR
+        IFE 12, POP
+            SET PC, reset_cursor
+
+        ADD SP, 1
+        SET PC, loop
+
+reset_cursor:
+        SET [SP], 0
+        SET PUSH, 0
+        BBOS_SETCURSOR
+        ADD SP, 2       ; clean up stack
+
+        SET PC, loop
+
+end_program: .dat 0
+
+; We use .fill to emplace boot magic number
+.fill 0, 0x1FE - end_program
+.dat 0x55AA     ; Magic number
+
+; vim: set ts=4 sw=4 tw=0 et :

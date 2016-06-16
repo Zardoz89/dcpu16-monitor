@@ -1,0 +1,24 @@
+; Simple test of two basic IO functions
+; Fills the screen with the whole charset, begins on 'I' character
+
+#include "BareBonesOS/src/bbos.inc.asm"
+#include "macros.dasm.inc"
+
+.org 0
+        set a, 'H'
+loop:
+        add a, 1
+        jsr putc
+        set pc, loop
+
+#include "io_functions.dasm.inc"
+
+end_program: .dat 0
+
+; We use .fill to emplace boot magic number
+.fill 0, 0x1FE - end_program
+.dat 0x55AA     ; Magic number
+
+
+
+; vim: set ts=4 sw=4 tw=0 et :

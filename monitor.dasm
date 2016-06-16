@@ -1,0 +1,290 @@
+; Simple test of IO functions
+; Does echo of user input on keyboard, and writes to a new line
+;
+#include "BareBonesOS/src/bbos.inc.asm"
+#include "macros.dasm.inc"
+
+; Modes of operation
+.def EXAM  0   ; Show the value at last_address
+.def BEXAM 1   ; Shot the valus from last_address to another address
+.def STORE 2   ; Writes values from last_address
+
+.def CR         0x11
+.def DEL        0x10
+.def SHIFT      0x90
+.def CTRL       0x91
+.def SPACE      0x20
+
+.def GO_CMD     0x67
+
+.def BEXAM_CMD  0x2E
+.def STORE_CMD  0x3A
+
+.def DIG_a      0x61
+.def DIG_f      0x66
+.def DIG_0      0x30
+.def DIG_9      0x39
+
+.org 0
+monitor_entry:
+        set [buffer_size], 0
+        set [last_address], 0x01FF
+        set [mode], EXAM
+
+monitor_get_input:
+        jsr line_feed
+        jsr print_prompt
+
+monitor_get_char_loop:
+        jsr getchar     ; A now, have keyboard key
+        ife a, DEL
+            set pc, monitor_del
+        ife a, SHIFT    ; Ignores Shift key
+            set pc, monitor_get_char_loop
+        ife a, CTRL     ; Ignores Ctrl key
+            set pc, monitor_get_char_loop
+
+        set push, a
+        ife a, CR
+            set a, SPACE  ; Hack to put an space at the end of the buffer
+
+        set b, [buffer_size]            ; Read the counter
+        set [buffer + b], a             ; Put the character on the buffer
+        add b, 1                        ; Increment the counter
+        set [buffer_size], b            ; Store the counter
+
+        set a, pop
+        ife a, CR
+            set pc, monitor_parse       ; Finish filling the buffer
+
+        jsr putc                        ; And echo the character
+
+        set pc, monitor_get_char_loop   ; and grab next input
+
+monitor_del:    ; Delete a char fro mthe buffer
+        ife [buffer_size], 0
+            set pc, monitor_get_char_loop   ; Nothing to delete
+        sub [buffer_size], 1
+        ; Now to repositionate the cursor, and delete the echo
+        jsr backspace
+        set pc, monitor_get_char_loop   ; and grab next input
+
+monitor_parse:
+        ; We are to use:
+        ; A value read from buffer
+        ; X were put if we get an value on Z
+        ; Z were put parsed hex value
+        ; Y previus value of A
+        ; I as index on buffer
+        ; J on STORE as index were write values
+        set a, 0
+        set z, 0
+        set x, 0
+        set y, 0
+        set i, 0
+        set j, 0
+monitor_parse_loop:             ; Here parses a symbol from the buffer
+        set y, a                ; Save previus value of A
+        ife i, [buffer_size]    ; while (i < buffer_size) { ...
+            set pc, monitor_parse_endloop
+
+        set a, [buffer + i]     ; Grab next character to parse
+        add i, 1                ; And increment index
+
+        ife a, SPACE
+            jsr monitor_parse_execute
+
+        ife [mode], STORE
+            set pc, monitor_parse_hexval
+
+        ;; Parse commands here
+        ife a, GO_CMD
+            set pc, monitor_go_cmd
+
+        ife [mode], EXAM
+            ife a, BEXAM_CMD
+                set pc, monitor_chmod_bexam ; Switch to Block EXAMination
+
+        ife [mode], EXAM
+            ife a, STORE_CMD
+                set pc, monitor_chmod_store ; Switch to Store mode
+
+monitor_parse_hexval:
+        set push, a
+        jsr hexdigit_to_word        ; Parse a single Hexadecimal digit and put on Z
+        set x, a
+        set a, pop
+
+        set pc, monitor_parse_loop
+
+
+monitor_parse_endloop:    ; Here code that acts when buffer ends
+        ;jsr monitor_parse_execute
+
+monitor_parse_end:                      ; Common code that ends the parse loop
+        set [buffer_size], 0
+        set [mode], EXAM
+        set pc, monitor_get_input       ; and grab next input
+
+
+monitor_chmod_bexam:                    ; Set mode to block examine
+        ife x, 1
+            set [last_address], z   ; Updates last adress
+        set z, 0    ; Clear temporal var
+        set [mode], BEXAM
+
+        set pc, monitor_parse_loop
+
+monitor_chmod_store:                    ; Set mode to write mode
+        ife x, 1
+            set [last_address], z   ; Updates last adress
+        set z, 0    ; Clear temporal var
+        set [mode], STORE
+
+        set pc, monitor_parse_loop
+
+
+monitor_parse_execute:        ; Here executes a command or an command action
+        set push, a
+
+        ife a, SPACE
+            ife a, y
+                set pc, monitor_parse_execute_end ; Avoid double execution
+
+        ife [mode], EXAM
+            ife x, 1
+                set [last_address], z   ; Updates last adress
+
+        ife [mode], EXAM
+            set pc, monitor_print_laddress
+
+        ife [mode], BEXAM
+            set pc, monitor_print_block
+
+        ; Store mode here
+        set b, [last_address]
+        add b, j
+        set [b], z
+        add j, 1      ; [last_address + j++] = z
+
+        set pc, monitor_parse_execute_end
+
+monitor_print_laddress:                 ; Prints pair addrress:value
+        jsr line_feed                   ; on the Next line
+        ; 1 - print address
+        set a, [last_address]
+        jsr print_uhexword
+
+        set a, ':'
+        jsr putc
+        set a, SPACE
+        jsr putc
+
+        ; 2 - print value at address last_address
+        set a, [last_address]
+        set a, [a]
+        jsr print_uhexword
+
+        set pc, monitor_parse_execute_end
+
+
+monitor_print_address_bexam:            ; Called on BEXAM mode to print address
+        set a, [last_address]
+        add a, j
+        jsr line_feed                   ; on the Next line
+        jsr print_uhexword              ; print address
+        set a, ':'
+        jsr putc
+        set pc, pop
+
+monitor_print_block:              ; Write a range of values [last_address] -> Z
+        ifl z, [last_address]           ; Invalid adress range
+            set pc, monitor_print_laddress  ; Fall back to EXAM mode
+        ife z, [last_address]           ; Invalid adress range
+            set pc, monitor_print_laddress
+
+        set j, 0
+monitor_print_block_for:                ; for (j=0; j<=(z-last_address) ; j++)
+        set a, z
+        sub a, [last_address]
+        ifg j, a
+            set pc, monitor_print_block_forend
+
+        ifc j, 0x0003   ; if j & 0b0000_0011 == 0 -> (j % 4 == 0 )
+            jsr monitor_print_address_bexam
+
+        set a, SPACE
+        jsr putc
+
+        ; print value at address [last_address] + j
+        set a, [last_address]
+        add a, j
+        set a, [a]  ; a= [last_address]+j
+        jsr print_uhexword
+
+        add j,1
+        set pc, monitor_print_block_for
+
+monitor_print_block_forend:
+        set [mode], EXAM  ; Finish BEXAM mode
+
+monitor_parse_execute_end:
+        set z, 0  ; Reset the acumulator
+        set a, pop
+        set pc, pop
+
+monitor_go_cmd:
+        ife x, 1
+            set [last_address], z   ; Updates last adress
+        set pc, [last_address]      ; Go To last_address
+
+; -----------------------------------------------------------------------------
+; Auxiliar functions
+
+; Parses a Hex Digit on A registers and puts on Z register.
+; A would become 1 if parsed an value
+hexdigit_to_word:
+        ; Parse hex value
+        ifg a, 0x60 ; >= 'a'
+            ifl a, 0x67 ;<= f
+                set pc, hexdigit_to_word_hex_letter_
+        ifg a, 0x2F ; >= '0'
+            ifl a, 0x3A ; <= '9'
+                set pc, hexdigit_to_word_hdigit_
+
+        set a, 0
+        set pc, pop
+
+hexdigit_to_word_hdigit_:                     ; Parse Hex [0-9] digit
+        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
+        sub a, 0x30 ; 0
+        bor z, a    ; z = z or (a-'0')
+
+        set a, 1
+        set pc, pop
+
+hexdigit_to_word_hex_letter_:                 ; Parse Hex [a-f] digit
+        shl z, 4    ; Z << 4 as we put the value on the 4 LSBits
+        sub a, 0x57 ; 'a' - 0x0A = 0x57
+        bor z, a    ; z = z or (a-0x57)
+
+        set a, 1
+        set pc, pop
+
+
+#include "io_functions.dasm.inc"
+
+end_program: .dat 0
+
+; We use .fill to emplace boot magic number
+.fill 0, 0x1FE - end_program
+.dat 0x55AA     ; Magic number
+
+; Variables
+last_address:   .reserve 1
+mode:           .reserve 1
+
+buffer_size:    .reserve 1
+buffer:         .reserve 1
+
+; vim: set ts=4 sw=4 tw=0 et :
