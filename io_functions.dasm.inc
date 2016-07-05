@@ -91,7 +91,7 @@ clr_line_end_:
         set x, pop
         set pc, pop
 
-; Do backspace with the cursor. Emplacin a space and getting back one cell the cursor
+; Do backspace with the cursor. Emplace a space and getting back one cell the cursor
 backspace:
         sub sp, 2
         BBOS_GETCURSOR
